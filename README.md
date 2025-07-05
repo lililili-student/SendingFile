@@ -1,17 +1,6 @@
 # Sending
-NOW GUI
+NOW GUI (SEE THE GUI ARCH HAVE A VERSION OF STANDARD PY LIB)
 its a tcp lan/wan chat and send(rec) file's tool
 ur chat & chat record is encrypt and only 2person at the same time same key to type in counterpart ip junst can be connect,and ur chat records only can be deciphering by the first key that u used with other.
 IT CALLED SleepyTalk. BUT FILE-CHAT is it's function
-USE:
-import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
-import sqlite3
-from cryptography.fernet import Fernet
-import socket
-import struct
-import os
-import threading
-import time
-import sys
-+tqdm
+
