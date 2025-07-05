@@ -406,7 +406,6 @@ class ChatApplication:
                         data = f.read(4096)
                         s.sendall(data)
                         sent += len(data)
-                        self.status_var.set(f"发送 {file_basename}: {sent}/{file_size} 字节")
                         self.root.update()
         
                 print(f"文件发送完成 (共发送 {sent} 字节)")
@@ -488,8 +487,7 @@ class ChatApplication:
                                 raise ConnectionError("连接提前关闭")
                             f.write(data)
                             received += len(data)
-                            self.status_var.set(f"接收 {filename}: {received}/{file_size} 字节")
-                            self.root.update()
+
                             if received == file_size:
                                 break
             
