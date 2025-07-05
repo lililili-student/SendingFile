@@ -1,14 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
 import sqlite3
-from cryptography.fernet import Fernet
 import socket
 import struct
 import os
 import threading
 import time
 import sys
-from tqdm import tqdm
 
 class ChatApplication:
     def __init__(self, root):
@@ -17,7 +15,7 @@ class ChatApplication:
         self.root.geometry("800x600")
         self.root.resizable(True, True)
         
-        # 应用状态变量
+        # Application state variables
         self.key = None
         self.cipher_suite = None
         self.ip_address = None
@@ -27,36 +25,36 @@ class ChatApplication:
         self.file_receiving = False
         self.file_sending = False
         
-        # 创建数据库
+        # Create database
         self.create_db()
         
-        # 创建UI
+        # Create UI
         self.setup_ui()
         
-        # 设置关闭事件处理
+        # Set close event handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
     
     def setup_ui(self):
-        # 创建主框架
+        # Create main frame
         self.main_frame = ttk.Frame(self.root, padding="10")
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 设置区域
+        # Settings area
         self.setup_frame = ttk.LabelFrame(self.main_frame, text="设置", padding="10")
         self.setup_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # 密钥设置
+        # Key settings
         ttk.Label(self.setup_frame, text="密钥:").grid(row=0, column=0, sticky=tk.W)
         self.key_entry = ttk.Entry(self.setup_frame, width=50)
         self.key_entry.grid(row=0, column=1, padx=5)
         ttk.Button(self.setup_frame, text="生成密钥", command=self.generate_key).grid(row=0, column=2)
         
-        # IP地址设置
+        # IP address settings
         ttk.Label(self.setup_frame, text="对方IP地址:").grid(row=1, column=0, sticky=tk.W)
         self.ip_entry = ttk.Entry(self.setup_frame, width=50)
         self.ip_entry.grid(row=1, column=1, padx=5, pady=5)
         
-        # 模式选择
+        # Mode selection
         ttk.Label(self.setup_frame, text="通信模式:").grid(row=2, column=0, sticky=tk.W)
         self.mode_var = tk.StringVar()
         self.mode_combobox = ttk.Combobox(self.setup_frame, textvariable=self.mode_var, 
@@ -64,19 +62,19 @@ class ChatApplication:
         self.mode_combobox.grid(row=2, column=1, sticky=tk.W, padx=5)
         self.mode_combobox.current(0)
         
-        # 操作按钮
+        # Operation buttons
         ttk.Button(self.setup_frame, text="启动", command=self.start_connection).grid(row=2, column=2, padx=5)
         ttk.Button(self.setup_frame, text="查看历史记录", command=self.show_history).grid(row=2, column=3, padx=5)
         
-        # 聊天区域
+        # Chat area
         self.chat_frame = ttk.LabelFrame(self.main_frame, text="聊天", padding="10")
         self.chat_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 聊天记录显示
+        # Chat history display
         self.chat_history = scrolledtext.ScrolledText(self.chat_frame, height=15, state=tk.DISABLED)
         self.chat_history.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # 消息输入区域
+        # Message input area
         self.input_frame = ttk.Frame(self.chat_frame)
         self.input_frame.pack(fill=tk.X)
         
@@ -84,7 +82,7 @@ class ChatApplication:
         self.message_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         self.message_entry.bind("<Return>", self.send_message)
         
-        # 按钮区域
+        # Button area
         self.button_frame = ttk.Frame(self.input_frame)
         self.button_frame.pack(side=tk.RIGHT)
         
@@ -92,17 +90,20 @@ class ChatApplication:
         ttk.Button(self.button_frame, text="发送文件", command=self.send_file).pack(side=tk.LEFT, padx=2)
         ttk.Button(self.button_frame, text="帮助", command=self.show_help).pack(side=tk.LEFT, padx=2)
         
-        # 状态栏
+        # Status bar
         self.status_var = tk.StringVar()
         self.status_var.set("就绪")
         self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
     
     def generate_key(self):
-        key = Fernet.generate_key()
+        # Simple key generation without Fernet
+        import random
+        import string
+        key = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
         self.key_entry.delete(0, tk.END)
-        self.key_entry.insert(0, key.decode())
-        messagebox.showinfo("密钥生成", f"已生成新密钥:\n{key.decode()}\n\n请确保双方使用相同的密钥!")
+        self.key_entry.insert(0, key)
+        messagebox.showinfo("密钥生成", f"已生成新密钥:\n{key}\n\n请确保双方使用相同的密钥!")
     
     def create_db(self):
         conn = sqlite3.connect('chat_records.db')
@@ -115,18 +116,34 @@ class ChatApplication:
         conn.close()
     
     def save_chat(self, message):
-        if not self.cipher_suite:
+        if not self.key:
             return
             
         conn = sqlite3.connect('chat_records.db')
         cursor = conn.cursor()
-        encrypted_message = self.cipher_suite.encrypt(message.encode('utf-8'))
+        # Simple XOR "encryption" instead of Fernet
+        encrypted_message = self.simple_encrypt(message)
         cursor.execute("INSERT INTO chat (message) VALUES (?)", (encrypted_message,))
         conn.commit()
         conn.close()
     
+    def simple_encrypt(self, message):
+        # Simple XOR encryption (not secure, just for demonstration)
+        key = self.key
+        if isinstance(key, str):
+            key = key.encode()
+        message_bytes = message.encode('utf-8')
+        encrypted = bytearray()
+        for i in range(len(message_bytes)):
+            encrypted.append(message_bytes[i] ^ key[i % len(key)])
+        return bytes(encrypted)
+    
+    def simple_decrypt(self, encrypted):
+        # Simple XOR decryption (same as encryption)
+        return self.simple_encrypt(encrypted.decode('latin1')).decode('utf-8')
+    
     def get_chat_records(self):
-        if not self.cipher_suite:
+        if not self.key:
             return []
             
         conn = sqlite3.connect('chat_records.db')
@@ -137,13 +154,16 @@ class ChatApplication:
         
         decrypted_records = []
         for record in records:
-            decrypted_message = self.cipher_suite.decrypt(record[0]).decode('utf-8')
-            decrypted_records.append(decrypted_message)
+            try:
+                decrypted_message = self.simple_decrypt(record[0])
+                decrypted_records.append(decrypted_message)
+            except:
+                continue
         
         return decrypted_records
     
     def show_history(self):
-        if not self.cipher_suite:
+        if not self.key:
             messagebox.showerror("错误", "请先生成或输入密钥!")
             return
             
@@ -167,33 +187,28 @@ class ChatApplication:
         ttk.Button(history_window, text="关闭", command=history_window.destroy).pack(pady=10)
     
     def start_connection(self):
-        # 获取密钥
+        # Get key
         key = self.key_entry.get().strip()
         if not key:
             messagebox.showerror("错误", "请输入密钥!")
             return
             
-        try:
-            self.key = key.encode()
-            self.cipher_suite = Fernet(self.key)
-        except Exception as e:
-            messagebox.showerror("错误", f"无效的密钥: {str(e)}")
-            return
-            
-        # 获取IP地址
+        self.key = key
+        
+        # Get IP address
         self.ip_address = self.ip_entry.get().strip()
         if not self.ip_address:
             messagebox.showerror("错误", "请输入对方IP地址!")
             return
             
-        # 获取通信模式
+        # Get communication mode
         self.mode = self.mode_var.get()
         
-        # 禁用设置区域
+        # Disable settings area
         for widget in self.setup_frame.winfo_children():
             widget.configure(state=tk.DISABLED)
         
-        # 启动通信线程
+        # Start communication thread
         if self.mode == "TCP":
             self.status_var.set("启动TCP通信...")
             threading.Thread(target=self.start_tcp, daemon=True).start()
@@ -202,26 +217,26 @@ class ChatApplication:
             threading.Thread(target=self.start_udp, daemon=True).start()
     
     def start_tcp(self):
-        # 启动服务器线程
+        # Start server thread
         threading.Thread(target=self.tcp_server, daemon=True).start()
         time.sleep(1)
         
-        # 启动客户端线程
+        # Start client thread
         threading.Thread(target=self.tcp_client, daemon=True).start()
     
     def start_udp(self):
-        # 启动服务器线程
+        # Start server thread
         threading.Thread(target=self.udp_server, daemon=True).start()
         time.sleep(1)
         
-        # 启动客户端线程
+        # Start client thread
         threading.Thread(target=self.udp_client, daemon=True).start()
     
     def tcp_server(self):
         self.status_var.set("TCP服务器启动中...")
         try:
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_socket.settimeout(50.0)  # 设置超时
+            server_socket.settimeout(50.0)  # Set timeout
             server_socket.bind(('0.0.0.0', 12345))
             server_socket.listen(1)
             self.status_var.set("TCP服务器已启动，等待连接...")
@@ -231,7 +246,7 @@ class ChatApplication:
                     client_socket, addr = server_socket.accept()
                     self.status_var.set(f"来自 {addr} 的连接")
                     
-                    client_socket.settimeout(50.0)  # 设置超时
+                    client_socket.settimeout(50.0)  # Set timeout
                     
                     while self.running:
                         try:
@@ -240,8 +255,8 @@ class ChatApplication:
                                 continue
                             
                             try:
-                                # 解密消息
-                                message = self.cipher_suite.decrypt(encrypted_message).decode('utf-8')
+                                # Decrypt message
+                                message = self.simple_decrypt(encrypted_message)
                                 self.display_message(f"来自 {addr}: {message}")
                                 self.save_chat(f"来自 {addr}: {message}")
                                 
@@ -269,9 +284,9 @@ class ChatApplication:
         self.status_var.set("尝试连接到TCP服务器...")
         try:
             self.tcp_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.tcp_client_socket.settimeout(50.0)  # 设置连接超时
+            self.tcp_client_socket.settimeout(50.0)  # Set connection timeout
             self.tcp_client_socket.connect((self.ip_address, 12345))
-            self.tcp_client_socket.settimeout(50.0)  # 设置后续超时
+            self.tcp_client_socket.settimeout(50.0)  # Set subsequent timeout
             self.status_var.set(f"已连接到 {self.ip_address}:12345")
         except socket.timeout:
             self.status_var.set("连接超时，请检查IP地址和网络")
@@ -283,7 +298,7 @@ class ChatApplication:
         try:
             udp_addr = ('0.0.0.0', 9999)
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            udp_socket.settimeout(50.0)  # 设置超时
+            udp_socket.settimeout(50.0)  # Set timeout
             udp_socket.bind(udp_addr)
             self.status_var.set("UDP服务器已启动")
             
@@ -294,9 +309,9 @@ class ChatApplication:
                         continue
                     
                     try:
-                        # 解密消息
+                        # Decrypt message
                         encrypted_message = recv_data[0]
-                        message = self.cipher_suite.decrypt(encrypted_message).decode('utf-8')
+                        message = self.simple_decrypt(encrypted_message)
                         addr = recv_data[1]
                         
                         self.display_message(f"[来自 {addr[0]}:{addr[1]}]: {message}")
@@ -316,10 +331,10 @@ class ChatApplication:
     
     def udp_client(self):
         self.status_var.set("UDP客户端已准备就绪")
-        # 客户端发送功能由用户触发
+        # Client sending functionality is triggered by the user
     
     def send_message(self, event=None):
-        if not self.cipher_suite:
+        if not self.key:
             messagebox.showerror("错误", "请先启动连接!")
             return
             
@@ -329,12 +344,12 @@ class ChatApplication:
             
         self.message_entry.delete(0, tk.END)
         
-        # 显示自己的消息
+        # Display own message
         self.display_message(f"我: {message}")
         self.save_chat(f"我: {message}")
         
-        # 加密并发送消息
-        encrypted_message = self.cipher_suite.encrypt(message.encode('utf-8'))
+        # Encrypt and send message
+        encrypted_message = self.simple_encrypt(message)
         
         if self.mode == "TCP":
             try:
@@ -353,7 +368,7 @@ class ChatApplication:
             except Exception as e:
                 self.status_var.set(f"发送错误: {str(e)}")
         
-        # 如果是发送文件指令
+        # If it's a file send command
         if message == 'sendF':
             threading.Thread(target=self.send_file, daemon=True).start()
     
@@ -361,57 +376,50 @@ class ChatApplication:
         self.send_message_async('sendF')
         self.status_var.set("选择要发送的文件...")
         filename = filedialog.askopenfilename()
-        import socket
-        import struct
-        import os
-        from tqdm import tqdm  # 导入tqdm库
 
         HOST = self.ip_address
         PORT = 5000
 
         if not os.path.isfile(filename):
             print("文件不存在或不是普通文件")
-            exit(1)
+            return
 
         file_size = os.path.getsize(filename)
         file_basename = os.path.basename(filename)
-        filename_bytes = file_basename.encode() + b'\x00'  # NULL终止文件名
+        filename_bytes = file_basename.encode() + b'\x00'  # NULL terminated filename
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST, PORT))
-            print(f"已连接到服务器 {HOST}:{PORT}")
-    
             try:
-                # 发送文件大小（8字节）
-                s.sendall(struct.pack('!Q', file_size))  # 使用8字节无符号整数
+                s.connect((HOST, PORT))
+                print(f"已连接到服务器 {HOST}:{PORT}")
         
-                # 发送文件名（含NULL终止符）
+                # Send file size (8 bytes)
+                s.sendall(struct.pack('!Q', file_size))  # 8-byte unsigned integer
+        
+                # Send filename (NULL terminated)
                 s.sendall(filename_bytes)
         
-                # 发送文件内容
+                # Send file content
                 sent = 0
-                with open(filename, 'rb') as f, tqdm(
-                    total=file_size,  # 总大小
-                    unit='B',         # 单位
-                    unit_scale=True,  # 自动缩放单位
-                    desc=f"发送 {file_basename}",  # 进度条描述
-                    ncols=80         # 进度条宽度
-                ) as pbar:
+                with open(filename, 'rb') as f:
                     while sent < file_size:
                         data = f.read(4096)
                         s.sendall(data)
                         sent += len(data)
-                        pbar.update(len(data))  # 更新进度条
+                        self.status_var.set(f"发送 {file_basename}: {sent}/{file_size} 字节")
+                        self.root.update()
         
                 print(f"文件发送完成 (共发送 {sent} 字节)")
+                self.status_var.set(f"文件 {file_basename} 发送完成")
 
             except Exception as e:
                 print(f"传输错误: {str(e)}")
+                self.status_var.set(f"文件发送错误: {str(e)}")
                 
     def send_message_async(self, message):
-        # 在后台线程中发送消息
+        # Send message in background thread
         def send():
-            encrypted_message = self.cipher_suite.encrypt(message.encode('utf-8'))
+            encrypted_message = self.simple_encrypt(message)
             
             if self.mode == "TCP":
                 try:
@@ -431,13 +439,8 @@ class ChatApplication:
         threading.Thread(target=send, daemon=True).start()
     
     def receive_file(self):
-        import socket
-        import struct
-        import os
-        from tqdm import tqdm  # 导入tqdm库
-
         def read_until_null(sock, max_length=4096):
-            """读取数据直到遇到NULL终止符"""
+            """Read data until NULL terminator is encountered"""
             buffer = bytearray()
             while True:
                 chunk = sock.recv(1)
@@ -448,7 +451,7 @@ class ChatApplication:
                     break
                 if len(buffer) > max_length:
                     raise ValueError("文件名过长")
-            return buffer[:-1]  # 排除NULL终止符
+            return buffer[:-1]  # Exclude NULL terminator
 
         HOST = '0.0.0.0'
         PORT = 5000
@@ -463,55 +466,54 @@ class ChatApplication:
                 print(f"已连接客户端: {addr}")
         
                 try:
-                    # 接收文件大小（8字节）
+                    # Receive file size (8 bytes)
                     file_size_bytes = conn.recv(8)
                     if len(file_size_bytes) != 8:
                         raise ValueError("无效的文件大小头")
-                    file_size = struct.unpack('!Q', file_size_bytes)[0]  # 使用8字节无符号整数
+                    file_size = struct.unpack('!Q', file_size_bytes)[0]  # 8-byte unsigned integer
             
-                    # 接收文件名（NULL终止）
+                    # Receive filename (NULL terminated)
                     filename_bytes = read_until_null(conn)
                     filename = filename_bytes.decode()
                     print(f"正在接收文件: {filename} (大小: {file_size} 字节)")
+                    self.status_var.set(f"正在接收文件: {filename}")
+                    self.root.update()
             
-                    # 接收文件内容
+                    # Receive file content
                     received = 0
-                    with open(filename, 'wb') as f, tqdm(
-                        total=file_size,  # 总大小
-                        unit='B',        # 单位
-                        unit_scale=True,  # 自动缩放单位
-                        desc=f"接收 {filename}",  # 进度条描述
-                        ncols=80          # 进度条宽度
-                    ) as pbar:
+                    with open(filename, 'wb') as f:
                         while received < file_size:
                             data = conn.recv(min(4096, file_size - received))
                             if not data:
                                 raise ConnectionError("连接提前关闭")
                             f.write(data)
                             received += len(data)
-                            pbar.update(len(data))
+                            self.status_var.set(f"接收 {filename}: {received}/{file_size} 字节")
+                            self.root.update()
                             if received == file_size:
-                                break# 更新进度条
+                                break
             
                     if received == file_size:
                         print("文件接收完成")
+                        self.status_var.set(f"文件 {filename} 接收完成")
                     else:
                         print(f"警告: 文件不完整 (已接收 {received}/{file_size} 字节)")
+                        self.status_var.set(f"文件不完整: {filename}")
 
                 except Exception as e:
                     print(f"传输错误: {str(e)}")
-                    # 删除不完整文件
+                    self.status_var.set(f"文件接收错误: {str(e)}")
+                    # Delete incomplete file
                     if 'filename' in locals():
                         if os.path.exists(filename):
                             os.remove(filename)
-        client_socket.close()
     
     def display_message(self, message):
         self.chat_history.config(state=tk.NORMAL)
         self.chat_history.insert(tk.END, message + "\n")
         self.chat_history.config(state=tk.DISABLED)
         self.chat_history.yview(tk.END)
-        self.root.update()  # 强制更新UI
+        self.root.update()  # Force UI update
     
     def show_help(self):
         help_text = """加密聊天应用使用指南 
@@ -532,7 +534,7 @@ class ChatApplication:
    - 聊天记录只能使用首次运行时生成的密钥访问
    - 文件传输过程中请勿重复操作
 
-版本: 1.0.O GUI
+版本: 1.0.0 GUI
 作者：LEO
 协议: Apache License Version 2.0
 """
@@ -553,8 +555,3 @@ if __name__ == "__main__":
     print("NOTE***THE LATEST CODE HAVE A UNKNOW ERR ON SENDING FILE. SO I JUST USE THE OLD VERSION")
     app = ChatApplication(root)
     root.mainloop()
-    n = input(":")
-    if n == "VERSION" :
-        print("0.3.3")
-        
-    
